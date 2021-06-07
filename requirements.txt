@@ -1,3 +1,4 @@
+geocoder
 streamlit
 pandas
 yfinance

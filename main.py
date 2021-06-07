@@ -1,7 +1,8 @@
-
+import geocoder
 import pandas as pd
 import streamlit as st
 import yfinance as yf
+
 
 from typing import List
 
@@ -41,23 +42,34 @@ class PastSockPrice(object):
             self.selected_ticker_comp_dict[comp] = self.ticker
         return self.selected_ticker_comp_dict
         
-        
-        
+    
+    
     def showStockInfo(self, selected_ticker_comp:dict,ticker_dict:dict) ->None:
         self.all_stockinfo = pd.DataFrame()
+        self.all_location = pd.DataFrame()
         
-        for comp, ticker in selected_ticker_comp.items():
-            self.stock_info = yf.Ticker(ticker)
-            self.price_hist = self.stock_info.history(period=f"{days}d")
-            self.price_hist = self.price_hist.loc[:,["Close"]]
+        with st.spinner('Loading!!!'):
+            for comp, ticker in selected_ticker_comp.items():
+                self.stock_info = yf.Ticker(ticker)
+                
+                self.location = self.stock_info.info["address1"]
+                self.ret = geocoder.osm(self.location, timeout=1.0)
+                self.location = pd.DataFrame(self.ret.latlng)
+                self.location = self.location.T.set_axis(['lat', 'lon'], axis=1)
+                self.all_location = pd.concat([self.all_location,self.location])
+                
+                self.price_hist = self.stock_info.history(period=f"{days}d")
+                self.price_hist = self.price_hist.loc[:,["Close"]]
+                
+                self.price_hist = self.price_hist.rename(columns={"Close":comp})
+                self.all_stockinfo = pd.concat([self.all_stockinfo,self.price_hist],axis=1)
             
-            self.price_hist = self.price_hist.rename(columns={"Close":comp})
-            self.all_stockinfo = pd.concat([self.all_stockinfo,self.price_hist],axis=1)
-        
-        if selected_ticker_comp:
-            self.all_stockinfo.index = self.all_stockinfo.index.strftime("%Y/%m/%d")
-            st.dataframe(self.all_stockinfo)
-            st.line_chart(self.all_stockinfo)
+            if selected_ticker_comp:
+                self.all_stockinfo.index = self.all_stockinfo.index.strftime("%Y/%m/%d")
+                st.dataframe(self.all_stockinfo)
+                st.line_chart(self.all_stockinfo)
+                st.map(self.all_location)
+
 
 
 past = PastSockPrice()
@@ -77,6 +89,10 @@ days = st.sidebar.slider(
 
 selectedComps = st.sidebar.multiselect(
     "会社を選んでください。",sorted(past.showCompName(all_ticker_dict))
+)
+
+contact = st.sidebar.text(
+    "Feel free contact me \n jyukiwave@gmail.com"
 )
 
 
