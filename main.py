@@ -43,20 +43,12 @@ class PastSockPrice(object):
         return self.selected_ticker_comp_dict
         
     
-    
-    def showStockInfo(self, selected_ticker_comp:dict,ticker_dict:dict) ->None:
+    def showStockPrice(self, selected_ticker_comp:dict,ticker_dict:dict) ->None:
         self.all_stockinfo = pd.DataFrame()
-        self.all_location = pd.DataFrame()
         
         with st.spinner('Loading!!!'):
             for comp, ticker in selected_ticker_comp.items():
                 self.stock_info = yf.Ticker(ticker)
-                
-                self.location = self.stock_info.info["address1"]
-                self.ret = geocoder.osm(self.location, timeout=1.0)
-                self.location = pd.DataFrame(self.ret.latlng)
-                self.location = self.location.T.set_axis(['lat', 'lon'], axis=1)
-                self.all_location = pd.concat([self.all_location,self.location])
                 
                 self.price_hist = self.stock_info.history(period=f"{days}d")
                 self.price_hist = self.price_hist.loc[:,["Close"]]
@@ -68,8 +60,23 @@ class PastSockPrice(object):
                 self.all_stockinfo.index = self.all_stockinfo.index.strftime("%Y/%m/%d")
                 st.dataframe(self.all_stockinfo)
                 st.line_chart(self.all_stockinfo)
-                st.map(self.all_location)
+                
 
+    def showLocation(self, selected_ticker_comp:dict) ->None:
+        with st.spinner('Loading!!!'):
+            self.all_location = pd.DataFrame()
+            
+            for comp, ticker in selected_ticker_comp.items():
+                self.stock_info = yf.Ticker(ticker)
+                
+                self.location = self.stock_info.info["address1"]
+                self.ret = geocoder.osm(self.location, timeout=1.0)
+                self.location = pd.DataFrame(self.ret.latlng)
+                self.location = self.location.T.set_axis(['lat', 'lon'], axis=1)
+                self.all_location = pd.concat([self.all_location,self.location])
+            
+            if not self.all_location.empty:
+                st.map(self.all_location)
 
 
 past = PastSockPrice()
@@ -78,26 +85,32 @@ past = PastSockPrice()
 all_ticker_dict = past.createAllTickerDict(past.ticker_files)
 
 
-#本文
-st.write("株価比較アプリ")
 
 #sidebarの作成
 days = st.sidebar.slider(
-    '表示期間', 0, 100, 7
+    '■ 表示日数', 0, 100, 7
 )
-
 
 selectedComps = st.sidebar.multiselect(
-    "会社を選んでください。",sorted(past.showCompName(all_ticker_dict))
+    "■ 会社を選んでください。",sorted(past.showCompName(all_ticker_dict))
 )
 
-contact = st.sidebar.text(
-    "Feel free contact me \n jyukiwave@gmail.com"
-)
 
 
 #選択された会社名のティッカーを取得
 selected_ticker_comp_dict = past.createTickerDict(all_ticker_dict,selectedComps)
 
+
 #選択されたティッカーの株価情報を表示
-past.showStockInfo(selected_ticker_comp_dict,all_ticker_dict)
+past.showStockPrice(selected_ticker_comp_dict,all_ticker_dict)
+
+#会社の場所をマップ表示
+location_checkbox = st.sidebar.checkbox("Show location")
+if location_checkbox:
+    past.showLocation(selected_ticker_comp_dict)
+
+contact = st.sidebar.write(
+    '<span style="color:gray;">■ Contact</span><br>'
+    '<span style="color:gray">jyukiwave@gmail.com</span>',
+    unsafe_allow_html=True
+)
