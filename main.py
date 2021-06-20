@@ -70,7 +70,7 @@ class PastSockPrice(object):
             
             if selected_ticker_comp:
                 self.all_stockinfo.index = self.all_stockinfo.index.strftime("%Y/%m/%d")
-                st.write(f"{days}日分の株価情報")
+                st.write(f"Stock Price in {days}")
                 st.dataframe(self.all_stockinfo)
                 st.line_chart(self.all_stockinfo)
                 
