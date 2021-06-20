@@ -1,7 +1,10 @@
+
 import geocoder
 import pandas as pd
 import streamlit as st
 import yfinance as yf
+from bs4 import BeautifulSoup
+import requests
 
 
 from typing import List
@@ -21,6 +24,11 @@ class PastSockPrice(object):
             tickers = pd.read_csv(f"./tickers/{ticker_file}.csv")
             
             self.ticker_list = pd.concat([self.ticker_list,tickers])
+            self.ticker_list = self.ticker_list[["Name","Symbol"]]\
+                                .replace("Inc. Class A Common Stock","",regex=True)\
+                                .replace("Inc. Common Stock","",regex=True).replace("Common Stock","",regex=True)\
+                                .replace("Common Stock","",regex=True).replace("Inc Common Stock","",regex=True)\
+                                .replace("Inc.","",regex=True)
             self.ticker_list = self.ticker_list[["Name","Symbol"]]
             self.all_ticker_dict = dict(self.ticker_list[["Name","Symbol"]].values)
         
@@ -81,39 +89,76 @@ class PastSockPrice(object):
                 self.all_location = pd.concat([self.all_location,self.location])
             
             if not self.all_location.empty:
-                st.write("会社の位置情報")
+                st.write("Location Of The Selected Conmanies")
                 st.map(self.all_location)
+                
+                
+    def getNews(self, selectedComps:list)->None:
+        for comp in selectedComps:
+            self.yf_page = f"https://finance.yahoo.co.jp/news/search/?q={comp}&queryType=orQuery&category=bus_all"
+            self.res = requests.get(self.yf_page)
+            self.soup = BeautifulSoup(self.res.text,"html.parser")
+            
+            #Newsがあるか判定。NoneであればNewsがある。
+            if self.soup.find("p",{"class":"_3dVFfhRc"}) == None:
+                self.conts = self.soup.find("ul",{"class":"_2U3CbQRW _3FDiuD5H"})
+                self.conts_lists = self.conts.find_all("li")
+            
+                self.news_df = pd.DataFrame()
+                self.news_dict = {}
+                for self.conts_list in self.conts_lists:
+                    if self.conts_list.find("span",{"class":"_36K6k1hY"}) and self.conts_list.find_all("span",{"class":"_1gx5TnFY"})[-1].text == "Bloomberg":
+                        self.news_dict[self.conts_list.find("span",{"class":"_36K6k1hY"}).text] = self.conts_list.find("a")["href"]
+        
+                st.success(f'Following are "{comp}" News')
+                for self.news_title, self.news_url in self.news_dict.items():
+                    st.text(self.news_title)
+                    st.markdown((self.news_url))
+                    
+                    
+            #newsがない場合
+            elif self.soup.find("p",{"class":"_3dVFfhRc"}).text == "該当するニュースが見つかりません。":
+                st.warning(f'No news about "{comp}" !!!')
+           
+                
+                
 
 
-past = PastSockPrice()
-st.title("株価比較アプリ")
+
+if __name__ == "__main__":
+    past = PastSockPrice()
 
 
-#全会社のティッカーを取得
-all_ticker_dict = past.createAllTickerDict(past.ticker_files)
+    #全会社のティッカーを取得
+    all_ticker_dict = past.createAllTickerDict(past.ticker_files)
 
-#sidebarの作成
-days = st.sidebar.slider(
-    '■ 株価表示日数', 0, 100, 7
-)
+    #sidebarの作成
+    st.sidebar.markdown('__[Chose a Period]__')
+    days = st.sidebar.slider(
+        '',0, 100, 7
+    )
 
-selectedComps = st.sidebar.multiselect(
-    "■ 会社を選んでください。(複数可)",sorted(past.showCompName(all_ticker_dict))
-)
+    st.sidebar.markdown('__[Select Companies]__')
+    selectedComps = st.sidebar.multiselect(
+        "",sorted(past.showCompName(all_ticker_dict))
+    )
 
-#選択された会社名のティッカーを取得
-selected_ticker_comp_dict = past.createTickerDict(all_ticker_dict,selectedComps)
+    #選択された会社名のティッカーを取得
+    selected_ticker_comp_dict = past.createTickerDict(all_ticker_dict,selectedComps)
 
-#選択されたティッカーの株価情報を表示
-past.showStockPrice(selected_ticker_comp_dict,all_ticker_dict)
+    #選択されたティッカーの株価情報を表示
+    past.showStockPrice(selected_ticker_comp_dict,all_ticker_dict)
 
-#会社の場所をマップ表示
-location_checkbox = st.sidebar.checkbox("マップ表示")
-if location_checkbox:
-    past.showLocation(selected_ticker_comp_dict)
+    #会社の場所をマップ表示
+    location_checkbox = st.sidebar.checkbox("Show Location Of The Companies")
+    if location_checkbox:
+        past.showLocation(selected_ticker_comp_dict)
 
-contact = st.sidebar.write(
-    '<span style="color:gray;">■ Contact</span><br>'
-    '<span style="color:gray">jyukiwave@gmail.com</span>',
-    unsafe_allow_html=True
-)
+    contact = st.sidebar.write(
+        '<span style="color:gray;"><small>[Contact]</small></span><br>'
+        '<span style="color:gray"><small>jyukiwave@gmail.com</small></span>',
+        unsafe_allow_html=True
+    )
+
+    #選択された会社のニュース情報をスクレイピング
+    past.getNews(selectedComps)

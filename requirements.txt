@@ -2,3 +2,5 @@ geocoder
 streamlit
 pandas
 yfinance
+BeautifulSoup
+requests
